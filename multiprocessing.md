@@ -51,8 +51,31 @@ if __name__ == "__main__":
     p = ctx.Process(target=worker)
     p.start()
     p.join()
-- fork
-- forkserver
+- fork (coppy): tiến trình con; Tất cả tài nguyên của tiến trình cha được tiến trình con kế thừa (Kế thừa tất cả biến, file, socket, lock… mà k cần khởi động lại)
+Ví dụ:
+from multiprocessing import get_context
+def worker():
+    print("Forked process running")
+if __name__ == "__main__":
+    ctx = get_context("fork")
+    p = ctx.Process(target=worker)
+    p.start()
+    p.join()
+
+- forkserver: để yêu cầu tạo process mới. Từ đó trở đi, bất cứ khi nào cần một tiến trình mới, tiến trình cha sẽ kết nối với máy chủ và yêu cầu nó phân nhánh một tiến trình mới. Tiến trình máy chủ phân nhánh là luồng đơn trừ khi các thư viện hệ thống hoặc các bản nhập được tải trước sinh ra các luồng như một tác dụng phụ nên nhìn chung là an toàn khi sử dụng os.fork(). Không có tài nguyên không cần thiết nào được kế thừa.
+Ví dụ:
+import multiprocessing
+def worker():
+    print("Forkserver process")
+if __name__ == "__main__":
+    multiprocessing.set_start_method("forkserver")
+    p = multiprocessing.Process(target=worker)
+    p.start()
+    p.join()
+
+
+
+
 
 # Trao đổi các đối tượng giữa các tiến trình
 - Queue:
@@ -68,3 +91,45 @@ if __name__ == '__main__':
     p.join()
 Hàng đợi an toàn với luồng và quy trình. Bất kỳ đối tượng nào được đưa vào multiprocessinghàng đợi sẽ được tuần tự hóa (làm theo thứ tự)
 - Pipe : trả về một cặp đối tượng kết nối được kết nối bằng một đường ống mà theo mặc định là song song (hai chiều)
+
+
+
+
+# 1-Value, 2-Array trong multiprocessing thì mới có thể trao đổi được dữ liệu với nhau
+Ví dụ: Value
+import time
+import multiprocessing
+import concurrent.futures
+ORIGIN_VALUE = multiprocessing.Value('i', 0)
+def add_199_to_value(number):
+    time.sleep(0.1)  
+    number.value += 199
+    ORIGIN_VALUE = number.value
+    print(f"Processed number: {number.value}")
+    return number.value
+def doit():
+    # with concurrent.futures.ProcessPoolExecutor() as executor:
+    #     [executor.submit(add_199_to_value, ORIGIN_VALUE) for _ in range(5)]
+        
+if __name__ == '__main__':
+    doit()
+    print(f'final: {ORIGIN_VALUE.value}')
+Ví dụ 2: Array : 
+import time
+import multiprocessing
+import concurrent.futures
+# multiprocessing.Array cho phép chia sẻ dữ liệu giữa các process.
+list_to_square = multiprocessing.Array('i', [1, 2, 3, 4, 5])  
+def square_element(list):
+    time.sleep(0.1)
+    for i in range (len(list)):
+        list[i] = list[i] * list[i]
+    print(f"Processed list: {list[:]}") # cú pháp bắt buộc
+    return list
+def doit():
+    p1 = multiprocessing.Process(target=square_element, args=(list_to_square,))
+    p1.start()
+    p1.join() 
+if __name__ == '__main__':
+    doit()
+    print(f"Main process list: {list_to_square[:]}")
